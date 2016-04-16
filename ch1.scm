@@ -71,7 +71,7 @@
 ;; 1.20
 (define (gcd a b)
   (cond ((= b 0) a)
-	(else (gcd b (remainder a b)))))
+        (else (gcd b (remainder a b)))))
 
 (gcd 3 9)
 ;; ch 1.2.6
@@ -482,6 +482,9 @@
 
 (define (squrt-n n x damp-cnt)
   (fixed-point (repeated-damp (root n x) damp-cnt) 1))
+
+
+
 
 
 
