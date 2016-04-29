@@ -17,5 +17,6 @@
 (define two (lambda (f) (lambda (x) (f (f x)))))
 ;规律:one的定义中应用了一次f, two的定义中应用了2次
 (define (add n)
-  (lambda (f) (lambda (x) )
-;定义加法
+  (lambda (f) (lambda (x) )))
+
+;;
