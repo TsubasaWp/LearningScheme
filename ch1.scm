@@ -35,8 +35,8 @@
 ;; 1.16
 (define (expt-iter b n a)
   (cond ((= n 0) a)
-	((even? n) (expt-iter  (* b b)  (/ n 2)  a))
-	(else (expt-iter  b (- n 1) (* b a)))))
+        ((even? n) (expt-iter  (* b b)  (/ n 2)  a))
+        (else (expt-iter  b (- n 1) (* b a)))))
 
 ;; 1.17
 (define (fast-mul a n)
