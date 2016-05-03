@@ -661,5 +661,79 @@
 ;; map & flatmap
 (map (lambda (x) (append x (list 9))) (list 1 2 3 4))
 (flatmap (lambda (x) (append x (list 9))) (list 1 2 3 4))
+(define (flatmap proc seq)
+  (accumulate append (list) (map proc seq)))
+
+(define (prime? x) (if (= (remainder x 2) 1) #t #f))
+
+(define (prime-sum? pair)
+  (prime? (+ (car pair) (cadr pair)))) ;; cadr
+(prime-sum? (list 2 2))
+(define (make-pair-sum pair)
+  (list (car pair) (cadr pair) (+ (car pair) (cadr pair))))
+(define (prime-sum-pairs n)
+  (map make-pair-sum
+       (filter prime-sum?
+               (flatmap
+                (lambda (i)
+                  (map (lambda (j) (list i j))
+                       (enumerate-interval 1 (- i 1))))
+                (enumerate-interval 1 n)
+                ))))
+(prime-sum-pairs 3);=> ((2 1 3) (3 2 5))
+;; 全排列
+(define (permutations s)
+  (if (null? s)
+      (list (list))
+      (flatmap (lambda (x)
+                 (map (lambda (p) (cons x p))
+                      (permutations (remove x s))))
+               s)))
+(define (remove item sequence)
+  (filter (lambda (x) (not (= x item)))
+          sequence))
+;;
+
+(define (team2 a b)
+  (cons (a b)))
+
+(define (team-div team-lst)
+  (cond ((= 2 (length team-lst))
+         (team2 (car team-lst) (cadr team-lst)))
+        (else
+         (paral-team team-lst)
+         (cross-team team-lst))))
+
+(define (split-left lst)
+  (let ((len (/ (length lst) 2)))
+    (define (iter rest n)
+      (if (= n 0)
+          (list)
+          (cons (car rest) (iter (cdr rest) (- n 1)))))
+    (iter lst len)))
+
+(define (split-right lst)
+  (let ((len (length lst)))
+    (define (iter rest n)
+      (cond ((= n 0) (list))
+            ((> n (/ len 2)) (append (list) (iter (cdr rest) (- n 1))))
+            (else (cons (car rest) (iter (cdr rest) (- n 1))))))
+    (iter lst len)))
+
+(split-left (list 1 2 3 4 5 6 7 8))
+(split-right (list 1 2 3 4 5 6 7 8))
+
+(define (cross1 lst)
+  (let ((len (length lst)))
+    (define (iter rest n)
+      (cond ((= n 0) (list))
+            ((even? n) (append (list) (iter (cdr rest) (- n 1))))
+            (else (cons (car rest) (iter (cdr rest) (- n 1))))))
+    (iter lst len)))
+
+(cross1 (list 1 2 3 4 5 6 7 8))
+
+(define (paral-team team-lst)
+  (team-div 
 
 
