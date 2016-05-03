@@ -699,10 +699,25 @@
 
 (define (team-div team-lst)
   (cond ((= 2 (length team-lst))
-         (team2 (car team-lst) (cadr team-lst)))
+         team-lst)
         (else
+         (append
          (paral-team team-lst)
-         (cross-team team-lst))))
+         (cross-team team-lst)))))
+
+(team-div (list 1 2 3 4))
+
+(define (paral-team team-lst)
+  (list
+  (team-div (split-left team-lst))
+  (team-div (split-right team-lst))))
+
+(define (cross-team team-lst)
+  (list
+  (team-div (cross1 team-lst))
+  (team-div (cross2 team-lst))))
+
+
 
 (define (split-left lst)
   (let ((len (/ (length lst) 2)))
@@ -731,9 +746,73 @@
             (else (cons (car rest) (iter (cdr rest) (- n 1))))))
     (iter lst len)))
 
-(cross1 (list 1 2 3 4 5 6 7 8))
+(define (cross2 lst)
+  (let ((len (length lst)))
+    (define (iter rest n)
+      (cond ((= n 0) (list))
+            ((odd? n) (append (list) (iter (cdr rest) (- n 1))))
+            (else (cons (car rest) (iter (cdr rest) (- n 1))))))
+    (iter lst len)))
 
-(define (paral-team team-lst)
-  (team-div 
+(cross1 (list 1 2 3 4 5 6 7 8))
+(cross2 (list 1 2 3 4 5 6 7 8))
+
+;; 2.42
+(define (unique? sequence k)
+  (if (null? sequence)
+      #t
+      (if (= k (car sequence))
+          #f
+          (unique? (cdr sequence) k))))
+(define empty-board (list))
+(define (queens board-size)
+  (define (queen-cols k)
+    (if (= 0 k)
+        (list empty-board)
+        (filter
+         (lambda (positions) (safe? k positions))
+         (flatmap
+          (lambda (rest-of-queens)
+            (map (lambda (new-row)
+                   (adjoin-position new-row k rest-of-queens))
+                 (enumerate-interval 1 board-size)))
+          (queen-cols (- k 1))))))
+  (queen-cols board-size))
+;; 每种摆法是一个排列
+;; adjoin
+(define (adjoin-position new-row k rest-of-queens)
+  (cons new-row rest-of-queens))
+;; safe
+
+(define (safe? k positions)
+  (define (safe-iter x rest distance)
+    (cond ((null? rest) #t)
+          ((= x (car rest)) #f)
+          ((= distance (abs (- x (car rest)))) #f)
+          (else (safe-iter x (cdr rest) (+ distance 1)))))
+  (safe-iter (car positions) (cdr positions) 1))
+
+(queens 4)
+(restart 1)
+;; other usage
+(define (adjoin-position new-row k rest)
+  (append rest (list (cons k new-row))))
+(define (safe? k positions)
+  (define (safe-iter pair rest)
+    (cond ((null? rest)
+           (if (= (car pair) (cdr pair)) #f #t))
+          ((= (car pair) (cdr pair)) #f)
+          ((equal-pair pair (car rest)) #f)
+          (else (safe-iter pair (cdr rest)))))
+  (safe-iter (car positions) (cdr positions)))
+
+(define (print-list seq)
+  (if (null? seq) (display "")
+      (begin
+        (newline)
+        (display (car seq))
+        (print-list (cdr seq)))))
+
+(print-list (queens 4))
 
 
