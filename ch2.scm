@@ -814,5 +814,609 @@
         (print-list (cdr seq)))))
 
 (print-list (queens 4))
+;;ch 2.2.4
+(define (up-split painter n)
+  (if (= n 0)
+      painter
+      (let ((smaller (up-split painter (- n 1))))
+        (up painter (right smaller smaller)))))
+;;2.45
+(define (split t1 t2)
+  (lambda (painter n)
+    (if (= n 0)
+        painter
+        (let ((smaller (painter (- n 1))))
+          (let ((part (t2 smaller smaller)))
+            (t1 painter part))))))
+;;2.46
+(define (make-vect x y) (cons x y))
+(define (xcor-vect rect) (car rect))
+(define (ycor-vect rect) (cdr rect))
+(define (add-vect v1 v2)
+  (make-vect
+   (+ (xcor-vect v1) (xcor-vect v2))
+   (+ (ycor-vect v1) (ycor-vect v2))))
+(define (sub-vect v1 v2)
+  (make-vect
+   (- (xcor-vect v1) (xcor-vect v2))
+   (- (ycor-vect v1) (ycor-vect v2))))
+(define (scale-vect s v)
+  (make-vect
+   (* s (xcor-vect v))
+   (* s (ycor-vect v))))
+;;2.47
+(define (origin-frame frame) (car frame))
+(define (edge1-frame frame) (cadr frame))
+(define (edge2-frame frame) (caddr frame))
+
+(define (origin-frame frame) (car frame))
+(define (edge1-frame frame) (cadr frame))
+(define (edge2-frame frame) (cddr frame))
+;;2.48
+(define (make-segment v1 v2) (list v1 v2))
+(define (start-segment seg) (car seg))
+(define (end-segment seg) (cadr seg))
+;;2.49
+(define (segments->painter segment-list)
+  (lambda (frame)
+    (for-each
+     (lambda (segment)
+       (draw-line
+        ((frame-coord-map frame) (start-segment segment))
+        ((frame-coord-map frame) (end-segment segment))))
+     segment-list)))
+(define (make-frame r1 r2 r3) (list r1 r2 r3))
+
+(define test-frame
+  (make-frame
+   (make-vect 0 0)
+   (make-vect 0 1)
+   (make-vect 1 0)))
+
+(define (top-left frame) (add-vect (origin-frame frame) (edge1-frame frame)))
+(define (top-right frame) (add-vect
+                           (edge2-frame frame)
+                           (add-vect (origin-frame frame) (edge1-frame frame))))
+(define (bottom-left frame) (origin-frame frame))
+(define (bottom-right frame) (add-vect (origin-frame frame) (edge2-frame frame)))
+
+(define (left-mid frame) (add-vect (origin-frame frame)
+                                   (scale-vect 0.5 (edge1-frame frame))))
+(define (top-mid frame) (add-vect
+                         (scale-vect 0.5 (edge2-frame frame))
+                         (add-vect (origin-frame frame)
+                                   (edge1-frame frame))))
+(define (bottom-mid frame) (add-vect (origin-frame frame)
+                                     (scale-vect 0.5 (edge2-frame frame))))
+(define (right-mid frame) (add-vect
+                         (edge2-frame frame)
+                         (add-vect (origin-frame frame)
+                                   (scale-vect 0.5 (edge1-frame frame)))))
+
+(define (top frame)  (make-segment (top-left frame) (top-right frame)))
+(define (left frame) (make-segment (top-left frame) (bottom-left frame)))
+(define (right frame) (make-segment (top-right frame) (bottom-right frame)))
+(define (bottom frame) (make-segment (bottom-left frame) (bottom-right frame)))
+
+(define (painter-a f)
+  (segments->painter
+   (list (left f) (top f) (rignt f) (bottom f))))
+
+(define (painter-b f)
+  (segments->painter
+   (list
+    (make-segment (bottom-left f) (top-right f))
+    (make-segment (bottom-right f) (top-left f)))))
+
+(define (painter-c f)
+  (segments->paiter
+   (list
+    (make-segment (left-mid f) (top-mid f))
+    (make-segment (top-mid f) (right-mid f))
+    (make-segment (right-mid f) (bottom-mid f))
+    (make-segment (bottom-mid f) (left-mid f)))))
+
+;; 2.50
+(define (flip-horiz painter)
+  (transform-painter painter
+                     (make-vect 1.0 0.0)
+                     (make-vect 0.0 0.0)
+                     (make-vect 1.0 1.0)))
+
+(define (flip-180 painter)
+  (transform-painter painter
+                     (make-vect 1.0 1.0)
+                     (make-vect 0.0 1.0)
+                     (make-vect 1.0 0.0)))
+
+(define (flip-270 painter)
+  (transform-painter painter
+                     (make-vect 0.0 1.0)
+                     (make-vect 0.0 0.0)
+                     (make-vect 1.0 1.0)))
+
+;; 2.51
+(define (below painter1 painter2)
+  (let ((split-point (make-vect 0.0 0.5)))
+    (let ((paint-top
+           (transform-painter painter1
+                              split-point
+                              (make-vect 1 0.5)
+                              (make-vect 0 1)))
+          (paint-below
+           (transform-painter painter2
+                              (make-vect 0 0)
+                              (make-vect 1 0)
+                              (make-vect 0 0.5))))
+      (lambda (frame)
+        (paint-top frame)
+        (paint-bottom frame)))))
+
+(define (below painter1 painter2)
+  (lambda (frame)
+    ((flip-horiz
+      (rotate90
+       (beside
+        (rotate270
+         (flip-horiz painter1))
+        (rotate270
+         (flip-horiz painter2)))))
+     frame)))
+
+;; 2.52
+(define (corner-split painter n)
+  (if (= n 0)
+      painter
+      (let ((up (up-split painter (- n 1)))
+            (right (right-split painter (- n 1)))
+            (corner (corner-split painter (- n 1))))
+        (beside (below painter up)
+                (below right corner)))))
+(define (square-limit painter n)
+  (let ((squarter (corner-split (flip-horiz painter) n)))
+    (let ((half (beside (flip-horiz quarter) quarter)))
+      (below (flip-vert half) half))))
+;; 2.53
+(define (menq item x)
+  (cond ((null? x) false)
+        ((eq? item (car x)) x)
+        (else (menq item (cdr x)))))
+(list 'a 'b 'c);Value 468: (a b c)
+(list (list 'george));Value 469: ((george))
+(cdr '((x1 x2) (y1 y2)));Value 473: ((y1 y2))
+(cadr '((x1 x2) (y1 y2)));(y1 y2)
+(pair? (car '(a short list)));#f
+(menq 'red '((red shoes) (blue socks)));#f
+(menq 'red '(red shoes blue socks));Value 475: (red shoes blue socks)
+;; 2.54
+(define (equal? x y)
+  (cond ((and (not (pair? x)) (not (pair? y))) (eq? x y))
+        ((and (pair? x) (pair? y))
+         (and (eq? (car x) (car y))
+              (equal? (cdr x) (cdr y))))
+        (else false)))
+;;2.55
+(car '(quote a))
+;;ch2.3.2
+(define (variable? x) (symbol? x))
+(define (same-variable? v1 v2)
+  (and (variable? v1) (variable? v2) (eq? v1 v2)))
+(define (make-sum a1 a2) (list '+ a1 a2))
+(define (make-product m1 m2) (list '* m1 m2))
+(define (sum? x)
+  (and (pair? x) (eq? (car x) '+)))
+(define (addend s) (cadr s))
+(define (augend s) (caddr s))
+(define (product? x)
+  (and (pair? x) (eq? (car x) '*)))
+(define (multiplier p) (cadr p))
+(define (multiplicand p) (caddr p))
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp)
+         (if (same-variable? exp var) 1 0))
+        ((sum? exp)
+         (make-sum (deriv (addend exp) var)
+                   (deriv (augend exp) var)))
+        ((product? exp)
+         (make-sum
+          (make-product (multiplier exp)
+                        (deriv (multiplicand exp) var))
+          (make-product (deriv (multiplier exp) var)
+                        (multiplicand exp))))
+        (else
+         (error "unknown expression type -- ERIV" exp))))
+
+(deriv '(+ x 3) 'x)
+(deriv '(* x y) 'x)
+(define (=number? exp num)
+  (and (number? exp) (= exp num)))
+(define (make-sum a1 a2)
+  (cond ((=number? a1 0) a2)
+        ((=number? a2 0) a1)
+        ((and (number? a1) (number? a2)) (+ a1 a2))
+        (else (list '+ a1 a2))))
+(define (make-product m1 m2)
+  (cond ((or (=number? m1 0) (=number? m2 0)) 0)
+        ((=number? m1 1) m2)
+        ((=number? m2 1) m1)
+        ((and (number? m1) (number? m2)) (* m1 m2))
+        (else (list '* m1 m2))))
+
+
+;; ex2.5
+(define (make-exponentiation a1 a2) (list '** a1 a2))
+(define (exponentiation? x) (and (pair? x) (eq? (car x) '**)))
+(define (base x) (cadr x))
+(define (exponent x) (caddr x))
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp)
+         (if (same-variable? exp var) 1 0))
+        ((sum? exp)
+         (make-sum (deriv (addend exp) var)
+                   (deriv (augend exp) var)))
+        ((product? exp)
+         (make-sum
+          (make-product (multiplier exp)
+                        (deriv (multiplicand exp) var))
+          (make-product (deriv (multiplier exp) var)
+                        (multiplicand exp))))
+        ((exponentiation? exp)
+         (make-product
+          (make-product (exponent exp)
+                        (make-exponentiation
+                         (base exp)
+                         (make-sum (exponent exp) -1)))
+          (deriv (base exp) var)))
+        (else
+         (error "unknown expression type -- ERIV" exp))))
+(deriv '(** x 3) 'x);Value 490: (* 3 (** x 2))
+;;2.57
+(define (make-sum a1 a2)
+  (cond ((=number? a1 0) a2)
+        ((=number? a2 0) a1)
+        ((and (number? a1) (number? a2)) (+ a1 a2))
+        (else
+         (cond
+          ((not (pair? a2)) (cons '+ (append a1 (list a2))))
+          (else (cons '+ (append a1 a2)))))))
+
+(define (make-product m1 m2)
+  (cond ((or (=number? m1 0) (=number? m2 0)) 0)
+        ((=number? m1 1) m2)
+        ((=number? m2 1) m1)
+        ((and (number? m1) (number? m2)) (* m1 m2))
+        (else
+         (cond
+          ((not (pair? m2)) (cons '* (append m1 (list m2))))
+          (else (cons '* (append m1 m2)))))))
+
+(define (augend s) (caddr s))
+
+(define (multiplicand p) (caddr p))
+
+(deriv '(* (* x y) (+ x 3)) 'x)
+;; 2.58
+(define (make-sum a1 a2)
+  (cond ((=number? a1 0) a2)
+        ((=number? a2 0) a1)
+        ((and (number? a1) (number? a2)) (+ a1 a2))
+        (else
+         (cond
+          ((not (pair? a2)) (append a1 (append (list '+) (list a2))))
+          (else (append a1 (append (list '+) a2)))))))
+
+(define (make-product m1 m2)
+  (cond ((or (=number? m1 0) (=number? m2 0)) 0)
+        ((=number? m1 1) m2)
+        ((=number? m2 1) m1)
+        ((and (number? m1) (number? m2)) (* m1 m2))
+        (else
+         (cond
+          ((not (pair? m2)) (append m1 (append (list '*) (list m2))))
+          (else (append m1 (append (list '*) m2)))))))
+(define (sum? x)
+  (and (pair? x) (eq? (cadr x) '+)))
+(define (addend s) (car s))
+(define (augend s) (caddr s))
+(define (product? x)
+  (and (pair? x) (eq? (cadr x) '*)))
+(define (multiplier p) (car p))
+(define (multiplicand p) (caddr p))
+(deriv '(x + (x * y)) 'x)
+;;ch2.3.3
+(define (element-of-set? x set)
+  (cond ((null? set) false)
+        ((equal? x (car set)) true)
+        (else (element-of-set? x (cdr set)))))
+
+(define (adjoin-set x set)
+  (if (element-of-set? x set)
+      set
+      (cons x set)))
+
+(define (intersection-set set1 set2)
+  (cond ((or (null? set1) (null? set2)) ())
+        ((element-of-set? (car set1) set2)
+         (cons (car set1)
+               (intersection-set (cdr set1) set2)))
+        (else (intersection-set (cdr set1) set2))))
+
+;; 2.59
+(define (union set1 set2)
+  (cond ((null? set1) set2)
+        ((null? set2) set1)
+        ((element-of-set? (car set1) set2)
+         (union (cdr set1) set2))
+        (else (cons (car set1) (union (cdr set1) set2)))))
+
+(define s1 (list 1 2 3))
+(define s2 (list 2 3 4))
+(intersection-set s1 s2)
+(union s1 s2)
+;;2.60
+(define (element-of-set? x set)
+  (define (iter x set count)
+    (cond ((null? set) count)
+          ((equal? x (car set))
+                   (iter x (cdr set) (+ count 1)))
+          (else (iter x (cdr set) count))))
+  (iter x set 0))
+
+(define (adjoin-set x set) (cons x set))
+
+(define (cons-n x set n)
+  (cond ((= n 0) set)
+        (else (cons-n x (cons x set) (- n 1)))))
+
+(define (intersection-set set1 set2)
+  (define (iter set1 set2 result)
+    (display result)
+    (cond ((or (null? set1) (null? set2)) result)
+          ((> (element-of-set? (car set1) result) 0)
+           (iter (cdr set1) set2 result))
+          (else (iter (cdr set1) set2
+                      (cons-n
+                       (car set1)
+                       result
+                       (min (element-of-set? (car set1) set1)
+                            (element-of-set? (car set1) set2)))))))
+  (iter set1 set2 ()))
+
+(define (union set1 set2)
+  (define (iter set1 set2 result)
+    (cond ((null? set1) result)
+          ((null? set2) set1)
+          ((> (element-of-set? (car set1) result)
+              (element-of-set? (car set1) set1))
+           (iter (cdr set1) set2 result))
+          (else (iter (cdr set1) set2
+                      (cons-n
+                       (car set1)
+                       result
+                       (- (element-of-set? (car set1) set1)
+                            (element-of-set? (car set1) result)))))))
+  (iter set1 set2 set2))
+
+(union '(a a b d d) '(a c d e f))
+;;
+(define (element-of-set? x set)
+  (cond ((null? set) false)
+        ((= x (car set)) true)
+        ((< x (car set)) false)
+        (else (element-of-set? x (cdr set)))))
+(element-of-set 3 (list  2 3 4)) ;; Value: #t
+(define (intersection-set set1 set2)
+  (if (or (null? set1) (null? set2))
+      ()
+      (let ((x1 (car set1)) (x2 (car set2)))
+        (cond ((= x1 x2)
+               (cons x1
+                     (intersection-set (cdr set1)
+                                       (cdr set2))))
+              ((< x1 x2)
+               (intersection-set (cdr set1) set2))
+              ((< x2 x1)
+               (intersection-set set1 (cdr set2)))))))
+
+(intersection-set '(1 2 2 4) '(2 2 3 4))
+;;2.61
+(define (adjoin-set x set)
+  (define (iter x set1 set2)
+    (cond ((= x (car set2)) (append set1 set2))
+          ((< x (car set2)) (append set1 (append (list x (car set2)) (cdr set2))))
+          (else (iter x (append set1 (list (car set2))) (cdr set2)))))
+  (iter x () set))
+
+(adjoin-set 5 '(1 2 3 6))
+;;2.62
+
+(define (union-set set1 set2)
+  (define (iter set1 set2 rst)
+    (cond ((null? set1) (append rst set1))
+          ((null? set2) (append rst set2))
+          (else (let ((x1 (car set1)) (x2 (car set2)))
+                  (cond
+                   ((= x1 x2)
+                    (iter (cdr set1) (cdr set2) (append rst (list x1 x2))))
+                   ((< x1 x2) 
+                    (iter (cdr set1) set2 (append rst (list x1))))
+                   ((< x2 x1)
+                    (iter set1 (cdr set2) (append rst (list x2)))))))))
+  (iter set1 set2 ()))
+
+(union-set '(1 2 2 4) '(2 2 3 4))
+;;tree
+(define (make-tree entry left right) (list entry left right))
+(define (entry tree) (car tree))
+(define (left-branch tree) (cadr tree))
+(define (right-branch tree) (caddr tree))
+(define (element-of-set? x set)
+  (cond ((null? set) false)
+        ((= x (entry set)) true)
+        ((< x (entry set))
+         (element-of-set? x (left-branch set)))
+        ((> x (entry set))
+         (element-of-set? x (right-branch set)))))
+
+(define (adjoin-set x set)
+  (cond ((null? set) (make-tree x () ()))
+        ((= x (entry set)) set)
+        ((< x (entry set))
+         (make-tree (entry set)
+                    (adjoin-set x (left-branch set))
+                    (right-branch set)))
+        ((> x (entry set))
+         (make-tree (entry set)
+                    (left-branch set)
+                    (adjoin-set x (right-branch set))))))
+
+(adjoin-set 2 (adjoin-set 1 ()))
+
+;;2.64
+(define (list->tree elements)
+  (car (partial-tree elements (length elements))))
+
+(define (partial-tree elts n)
+  (if (= n 0)
+      (cons () elts)
+      (let ((left-size (quotient (- n 1) 2)))
+        (let ((left-result (partial-tree elts left-size)))
+          (let ((left-tree (car left-result))
+                (non-left-elts (cdr left-result))
+                (right-size (- n (+ left-size 1))))
+            (let ((this-entry (car non-left-elts))
+                   (right-result (partial-tree (cdr non-left-elts)
+                                               right-size)))
+                  (let ((right-tree (car right-result))
+                        (remaining-elts (cdr right-result)))
+                    (cons (make-tree this-entry left-tree right-tree)
+                          remaining-elts))))))))
+
+(list->tree '(1 3 5 9 7 11))
+
+;; 2.65
+(define (tree->list tree)
+  (define (copy-to-list tree result-list)
+    (if (null? tree)
+        result-list
+        (copy-to-list (left-branch tree)
+                      (cons (entry tree)
+                            (copy-to-list (right-branch tree)
+                            result-list)))))
+  (copy-to-list tree '()))
+
+(define (union-set-tree tree1 tree2)
+  (let ((list1 (tree->list tree1)))
+    (define (adjoin-list-to-tree list tree)
+      (cond ((null? list) tree)
+            (else
+             (adjoin-list-to-tree (cdr list)
+                                  (adjoin-set (car list) tree)))))
+    (list->tree (adjoin-list-to-tree list1 tree2))))
+
+(define (intersection-set-tree tree1 tree2)
+  (list->tree (intersection-set
+               (tree->list tree1)
+               (tree->list tree2))))
+
+(union-set-tree (list->tree '(1 3 5)) (list->tree '(2 4)))
+                                        ;Value 613: ((1 () ()) (2 () ()) ((4 (3 () ()) (5 () ())) () ()))
+
+(intersection-set-tree (list->tree '(1 3 5)) (list->tree '(1 3 5 9 7 11)))
+                                        ;Value 612: (3 (1 () ()) (5 () ()))
+;;2.66
+(define (make-entry key value) (cons key value))
+(define (key entry) (car entry))
+(define (value entry) (cdr entry))
+(define test-tree (list->tree (list
+                               (make-entry 1 "aa")
+                               (make-entry 2 "bb")
+                               (make-entry 3 "cc")
+                               (make-entry 4 "dd")
+                               (make-entry 5 "ee")
+                               )))
+
+(define (loopup x tree)
+  (cond ((null? tree) false)
+        ((= x (key (entry tree)))
+         (value (entry tree)))
+        ((< x (key (entry tree))) 
+         (loopup x (left-branch tree)))
+        ((> x (key (entry tree))) 
+         (loopup x (right-branch tree)))))
+
+(loopup 1 test-tree)
+;;
+(define (make-leaf symbol weight)
+  (list 'leaf symbol weight))
+
+(define (leaf? object)
+  (eq? (car object) 'leaf))
+
+(define (symbol-leaf x) (cadr x))
+(define (weight-leaf x) (caddr x))
+
+(define (make-code-tree left right)
+  (list left
+        right
+        (append (symbols left) (symbols right))
+        (+ (weight left) (weight right))))
+
+(define (left-branch tree) (car tree))
+(define (right-branch tree) (cadr tree))
+(define (symbols tree)
+  (if (leaf? tree)
+      (list (symbol-leaf tree))
+      (caddr tree)))
+
+(define (weight tree)
+  (if (leaf? tree)
+      (weight-leaf tree)
+      (cadddr tree)))
+
+(define (decode bits tree)
+  (define (decode-1 bits current-branch)
+    (if (null? bits)
+        ()
+        (let ((next-branch
+               (choose-branch (car bits) current-branch)))
+          (if (leaf? next-branch)
+              (cons (symbol-leaf next-branch)
+                    (decode-1 (cdr bits) tree))
+              (decode-1 (cdr bits) next-branch)))))
+  (decode-1 bits tree))
+
+(define (choose-branch bit branch)
+  (cond ((= bit 0) (left-branch branch))
+        ((= bit 1) (right-branch branch))
+        (else (error "bad bit"))))
+
+(define (adjoin-set x set)
+  (cond ((null? set) (list x))
+        ((< (weight x) (weight (car set))) (cons x set))
+        (else (cons (car set)
+                    (adjoin-set x (cdr set))))))
+
+(define (make-leaf-set pairs)
+  (if (null? pairs)
+      ()
+      (let ((pair (car pairs)))
+        (adjoin-set (make-leaf (car pair)
+                               (cadr pair))
+                    (make-leaf-set (cdr pairs))))))
+
+(make-leaf-set (list '(A 4) '(B 2) '(C 1) '(D 1)))
+
+;;2.67
+(define sample-tree
+  
+
+
+
+
 
 
