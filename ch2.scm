@@ -1413,10 +1413,126 @@
 
 ;;2.67
 (define sample-tree
-  
+  (make-code-tree (make-leaf 'A 4)
+                  (make-code-tree
+                   (make-leaf 'B 2)
+                   (make-code-tree (make-leaf 'D 1)
+                                   (make-leaf 'C 1)))))
+(define sample-message '(0 1 1 0 0 1 0 1 0 1 1 1 0))
+(decode  sample-message sample-tree)
+;;2.68
 
+(define (encode message tree)
+  (if (null? message)
+      ()
+      (append (encode-symbol (car message) tree)
+              (encode (cdr message) tree))))
 
+(define (symbol-in-tree? symbol tree)
+  (cond ((leaf? tree) (eq? symbol (symbol-leaf tree)))
+        (else (memq symbol (symbols tree)))))
 
+(define (encode-symbol message tree)
+  (define (encode-iter message subtree result)
+    (cond ((null? message) result)
+          ((leaf? subtree) (encode-iter (cdr message) tree result))
+          (else (let ((left (left-branch subtree))
+                      (right (right-branch subtree)))
+                  (cond ((symbol-in-tree? (car message) left)
+                         (encode-iter  message left (cons '0 result)))
+                        ((symbol-in-tree? (car message) right)
+                         (encode-iter  message right (cons '1 result)))
+                        (else (error "sambol not in the tree"))
+                        )))))
+  (encode-iter message tree ()))
 
+(define sample-message '(a d a b b c a))
+(encode-symbol sample-message sample-tree)
+(restart 1)
+;; 2.69
+(make-leaf-set (list '(A 4) '(B 2) '(C 1) '(D 1)))
+(define (successive-merge pairs)
+  (cond ((= 1 (length pairs)) pairs)
+        (else
+         (successive-merge
+          (adjoin-set
+           (make-code-tree (car pairs) (cadr pairs))
+           (cddr pairs))))))
 
+(successive-merge (make-leaf-set (list '(A 4) '(B 2) '(C 1) '(D 1))))
+;; 2.70
+(define sing-pairs (list '(a 2) '(na 16) '(boom 1) '(sha 3) '(get 2) '(yip 9) '(job 2) '(wah 1)))
+(define sing-tree (car (successive-merge (make-leaf-set sing-pairs))))
+(encode-symbol '(Get a job) sing-tree)
+                                        ; (0 0 0 0 0 0 0 0 0 1 1 1)
+(encode-symbol '(Sha na na na na na na na na) sing-tree)
+                                        ; (0 1 1 1 1 0 0 1 1 1 1 1 1 1)
+(encode-symbol '(Wah yip yip yip yip yip yip yip yip yip) sing-tree)
+                                        ; (0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 1)
+(encode-symbol '(Sha boom) sing-tree)
+                                        ; (1 1 0 1 1 0 1 1 1)
+;;2.71
+(successive-merge (make-leaf-set (list '(a 1) '(b 2) '(c 4) '(d 8) '(e 16))))
+;;2.4.2
+(define (attach-tag type-tag contents)
+  (cons type-tag contents))
 
+(define (type-tag datum)
+  (if (pair? datum)
+      (car datum)
+      (error "bad tagged datum -- TYPE-TAG" datum)))
+
+(define (contents datum)
+  (if (pair? datum)
+      (cdr datum)
+      (error "bad tagged datum -- CONTENTS" datum)))
+
+(define (rectangular? z)
+  (eq? (type-tag z) 'rectangular))
+
+(define (polar? z)
+  (eq? (type-tag z) 'polar))
+
+(define (real-part-polar z)
+  (* (magnitude-polar z) (cos (angle-polar z))))
+(define (real-part-rectangular z) (car z))
+(define (real-part z)
+  (cond ((rectangular? z)
+         (real-part-rectangular (contents z)))
+        ((polar? z)
+         (real-part-polar (contents z)))
+        (else (error "Unkown type -- REAL_PART" z))))
+;;
+(define (install-rectangular-package)
+  ;;internal procedures
+  (define (real-part z) (car z))
+  ;;interface rest of the system
+  (define (tag x) (attach-tag 'rectangular z))
+  (put 'real-part '(rectangular) real-part))
+
+(define (apply-generic op . args)
+  (let ((type-tags (map type-tag args)))
+    (let ((proc (get op type-tags)))
+      (if proc
+          (apply proc (map contents args))
+          (error
+           "No mathod for these type -- APPLY-GENERIC"
+           (list op type-tags))))))
+
+(define (real-part z) (apply-generic 'real-part z))
+
+(define (assoc key records)
+  (cond ((null? records) false)
+        ((equal? key (caar records)) (car records))
+        (else (assoc key (cdr records)))))
+(define (lookup key table)
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (cdr record)
+        false)))
+(define (insert! key value table)
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (set-cdr! record value)
+        (set-cdr! table
+                  (cons (cons key value) (cdr table))))))
