@@ -1503,12 +1503,47 @@
          (real-part-polar (contents z)))
         (else (error "Unkown type -- REAL_PART" z))))
 ;;
+;;---------------------------------------------------
+(define local-table (list '*table*))
+(define (assoc key records)
+  (cond ((null? records)
+         #f)
+        ((equal? key (caar records))
+         (car records))
+        (else
+         (assoc key (cdr records)))))
+(define (get key-1 key-2)
+  (let ((subtable (assoc key-1 (cdr local-table))))
+    (if subtable
+        (let ((record (assoc key-2 (cdr subtable))))
+          (if record
+              (cdr record)
+              #f))
+        #f)))
+(define (put key-1 key-2 value)
+  (let ((subtable (assoc key-1 (cdr local-table))))
+    (if subtable
+        (let ((record (assoc key-2 (cdr subtable))))
+          (if record
+              (set-cdr! record value)
+              (set-cdr! subtable
+                        (cons (cons key-2 value)
+                              (cdr subtable)))))
+        (set-cdr! local-table
+                  (cons (list key-1
+                              (cons key-2 value))
+                        (cdr local-table)))))
+  'ok)
+;;--------------------------------------------------
+(define (tag x) (attach-tag 'rectangular x))
 (define (install-rectangular-package)
   ;;internal procedures
   (define (real-part z) (car z))
+  (define (imag-part z) (cdr z))
   ;;interface rest of the system
-  (define (tag x) (attach-tag 'rectangular z))
-  (put 'real-part '(rectangular) real-part))
+  (put 'real-part '(rectangular) real-part)
+  (put 'real-part '(polar) real-part)
+  (put 'imag-part '(rectangular) real-part))
 
 (define (apply-generic op . args)
   (let ((type-tags (map type-tag args)))
@@ -1520,19 +1555,142 @@
            (list op type-tags))))))
 
 (define (real-part z) (apply-generic 'real-part z))
+(install-rectangular-package)
+(real-part (attach-tag 'polar  (cons 1 2)))
 
-(define (assoc key records)
-  (cond ((null? records) false)
-        ((equal? key (caar records)) (car records))
-        (else (assoc key (cdr records)))))
-(define (lookup key table)
-  (let ((record (assoc key (cdr table))))
-    (if record
-        (cdr record)
-        false)))
-(define (insert! key value table)
-  (let ((record (assoc key (cdr table))))
-    (if record
-        (set-cdr! record value)
+;; 2.73
+
+(define (operator exp) (car exp))
+(define (operands exp) (cdr exp))
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp)
+         (if (same-variable? exp var) 1 0))
+        (else
+         ((get 'deriv (operator exp)) (operands exp) var))))
+
+(define (install-deriv-package)
+  (define (deriv-sum exp var)
+    (make-sum (deriv (car exp) var)
+              (deriv (cadr exp) var)))
+  (define (deriv-product exp var)
+    (make-sum
+     (make-product (car exp)
+                   (deriv (cadr exp) var))
+     (make-product (deriv (car exp) var)
+                   (cadr exp))))
+  (define (exponentiation exp var)
+    (make-product (cadr exp)
+                  (make-exponentiation
+                   (car exp)
+                   (make-sum (cadr exp) -1))))
+  (put 'deriv '+ deriv-sum)
+  (put 'deriv '* deriv-product)
+  (put 'deriv '** exponentiation))
+(install-deriv-package)
+;; test
+(deriv '(** x 3) 'x)
+(deriv '(* x y) 'x)
+(deriv '(* x y) 'x)
+(restart 1)
+;; 2.74
+(define (get-tb table key-1 key-2 )
+  (let ((subtable (assoc key-1 (cdr table))))
+    (if subtable
+        (let ((record (assoc key-2 (cdr subtable))))
+          (if record
+              (cdr record)
+              #f))
+        #f)))
+(define (put-tb table key-1 key-2 value)
+  (let ((subtable (assoc key-1 (cdr table))))
+    (if subtable
+        (let ((record (assoc key-2 (cdr subtable))))
+          (if record
+              (set-cdr! record value)
+              (set-cdr! subtable
+                        (cons (cons key-2 value)
+                              (cdr subtable)))))
         (set-cdr! table
-                  (cons (cons key value) (cdr table))))))
+                  (cons (list key-1
+                              (cons key-2 value))
+                        (cdr table)))))
+  'ok)
+
+(define (employee name)
+  (define rst (list '*table*))
+  (put-tb rst name 'address 'my-address)
+  (put-tb rst name 'salary '999)
+  rst)
+
+(define (load-offices)
+  (define office-table (list '*table))
+  (put-tb office-table 'office-1 'name1 (employee 'name1))
+  (put-tb office-table 'office-2 'name2 (employee 'name2))
+  (put-tb office-table 'office-2 'name3 (employee 'name3))
+  (put-tb office-table 'office-3 'name2 (employee 'name2))
+  office-table)
+
+(define offices-record (load-offices))
+
+(define (get-record office name)
+  (get-tb offices-record office name))
+
+(define (get-salary office name)
+  (define employee (get-tb offices-record office name))
+  (if (not employee)
+      (error "CANNOT FIND THE EMPLOYEE!")
+      (get-tb employee name 'salary)))
+
+(define (find-employee-record name)
+  (define (iter table name result)
+    (if (null? table)
+        result
+        (let ((subtable (car table)))
+          (if (null? subtable)
+              result
+              (let ((record (assoc name (cddr (cadr subtable)))))
+                (if record
+                    (iter (cdr table) name (cons result record)
+                    (iter (cdr table) name result)))))))
+    (iter (cdr offices-record) name '()))
+
+  (find-employee-record 'name3)
+(restart 1)
+
+(get-record 'office-2 'name2)
+(get-salary 'office-1 'name2)
+
+;; message pass
+(define (make-from-real-imag x y)
+  (define (dispatch op)
+    (cond ((eq? op 'real-part) x)
+          ((eq? op 'imag-part) y))))
+
+(define (apply-generic op arg) (arg op))
+;;2.75
+(define (make-from-mag-ang x y)
+  (define (dispatch op)
+    (cond ((eq? op 'magnitude) x)
+          ((eq? op 'angle) y)
+          ((eq? op 'real-part) (* x (sin y)))
+          ((eq? op 'imag-part) (* x (cons y)))
+          (else
+           (error "Unknown op -- MAKE FROM MAG ANG" op))))
+  dispatch)
+
+((make-from-mag-ang 1 2) 'magnitude)
+;;
+(define (add x y) (apply-generic 'add x y))
+;;2.77
+(define (install-scheme-number-package)
+  (define (tag x)
+    (attach-tag 'scheme-number x))
+  (put 'add '(scheme-number scheme-number)
+       (lambda (x y) (tag (+ x y))))
+  'done)
+(install-scheme-number-package)
+
+
+
